@@ -1,26 +1,36 @@
-# lad_compare.py
+# Contents
 
+- [lad_compare.py](#lad_compare.py)
+- [postcode_search.py](#postcode_search.py)
 
-### Problem Background
-Every quarter Openreach release a new version of a CSV file called the "LAD" file. This file maps each UK postcode to the exchange that *would* be used if an EAD fibre circuit were to be ordered to a given UK postcode (the fibre servicing exchange).
+## lad_compare.py
 
-This script will compare the two LAD file versions and produce two new files which have a list of postcode entries that are unique to each input file.
+### Why?
+Every quarter Openreach release a new version of a CSV file called the "LAD" file. This file maps each UK postcode to the exchange that *would* be used if an EAD fibre circuit were to be ordered to a given UK postcode (it's called the "fibre serving exchange").
+
+Openreach don't tell you which postcodes have been added or removed or how many. The LAD file has circa 1.8M rows which is too large to open in applications like Microsoft Excel. This script will compare the two LAD files (CSV files) and produce two new files which have a list of postcode entries that are unique to each input file.
+
+In this example we'll compare the 2019 Q2 LAD file with the 2019 Q2 LAD file.
 
 
 ### Problem Scoping 1
-The first problem is that file 1 has 1,867,414 rows and file 2 has 1,867,749 rows. File 2 is 335 rows larger but they may not be all additional rows, for example some rows may no longer be present in file 1 which were in file 1. This means that in the worst case scenario every row in file 1 needs to be checked to every row in file 2, in a simple `for` loop to check if each postcode exists in both files. A naïve suggestion then would be that the Number of Checks required is `1,867,414 * 1,867,749 == 3,487,860,631,086` checks.
+The first problem is that file 1 has 1,867,414 rows and file 2 has 1,867,749 rows. File 2 is 335 rows larger but there might be more than 335 new postcode entries, for example some rows may no longer be present in file 2 which were in file 1. This means that in the worst case scenario every row in file 1 needs to be checked against every row in file 2, in a simple `for` loop to check if each postcode exists in both files (and this, which postcodes are unique to each file). A naïve suggestion then would be that the **N**umber **o**f **C**hecks required is `1,867,414 * 1,867,749 == 3,487,860,631,086` checks.
 
 
 ### Problem Scoping 2
-A basic conjecture we can make is that 50% of time when searching for a postcode in file 1, it will be found in the first 50% of file 2 (this is independent of file order). This means the NoC is already cut in half and reduced to `1,867,414 * (1,867,749/2) == 1,743,930,315,543` checks.
+A basic conjecture we can make is that when searching for a postcode in file 1 in file 2, 50% of time if a matching postcode exists in file 2 it will be found in the first 50% of file 2 (this should be independent of file order). This means the NoC is already cut in half and reduced to `1,867,414 * (1,867,749/2) == 1,743,930,315,543` checks.
 
 
 ### Problem Scoping 3
-A simple change can be made to the basic for loop idea which reduces the NoC significantly. As each row in file 1 is looped over, and compared against every row in file 2, once a match is found in file 2, the matching row in file 2 can be deleted so that each subsequent row in file 1 has a reducing file 2 to search through. Now, “only” the nth triangle of 1,867,414 rows needs to be checked, and as above statistically 50% of file 1 rows will be in the first 50% of file 2, the entire of file 2 doesn't need to be walked for each file 1 row. NoC is now `1,867,749 * (1,867,414/2) == 1,743,930,315,543 / 2 == 871,965,157,771.5` checks.
+A simple change can be made to the basic for loop idea which reduces the NoC significantly. As each row in file 1 is looped over, and compared against every row in file 2, once a match is found in file 2, the matching row in file 2 can be deleted so that each subsequent row in file 1 has a reducing file 2 to search through. Now, “only” the nth triangle of 1,867,414 rows needs to be checked, and as above statistically 50% of file 1 rows will be in the first 50% of file 2, the entire of file 2 doesn't need to be walked for each file 1 row. NoC is now `1,867,749 * (1,867,414/2) == 1,743,930,315,543 / 2 == ~871,965,157,771.5` checks.
 
 
 ### Problem Scoping 4
-There is an exception to the previously mentioned 50% assertion. If the two files were explicitly sorted in reverse order to each other, i.e. file 1 is sorted by postcode in alphabetical order from A to Z and file 2 is sorted from Z to A, then for each row in file 1 we'll need to always search to the end (or near the end) of file 2 to find the matching row (if one exists). This means that the first action which must be made is that both files must be sorted. Sorting takes <1 second and as a result for each row in file 1 the matching row is going to be the first row in 2 (or very near the start) because each matched row is deleted from file 2. The NoC now comes essentially becomes "number of rows in the larger of the two files", `NoC == 1,867,749`. In a theoretical worst case scenario that all the postcodes in file 1 weren't present in file 2, no entries from file 2 would be delete because none would match any entry in file 1, and we'd be back to square 1 with NoC returning to `1,867,414 * 1,867,749 == 3,487,860,631,086` checks (in reality there would be no point compring the two CSV files if we knew they were completely different, but we know this is an updated version of the same file so the NoC will be much closer to `1,867,749`).
+There is an exception to the previously mentioned 50% conjecture; If the two files were explicitly sorted in reverse order to each other, i.e. file 1 is explicitly sorted by postcode in alphabetical order from A to Z and file 2 is explicitly sorted from Z to A, then for each row in file 1 we'll need to always search to the end (or near the end) of file 2 to find the matching row (if one exists). 
+
+This means that the first action which must be made is that both files must be sorted. Sorting takes <1 second and as a result for each row in file 1 the matching row is going to be the first row in 2 (or very near the start) because each matched row is deleted from file 2. The NoC now  becomes more or less "the number of rows in the smaller of the two files", `NoC == 1,867,414`. In a theoretical worst case scenario that all the postcodes in file 1 aren't present in file 2, no entries from file 2 would be delete because none would match any entry in file 1, and we'd be back to square 1 with NoC returning to `1,867,414 * 1,867,749 == 3,487,860,631,086` checks. 
+
+In reality there would be no point comparing the two CSV files if we knew they were completely different, but we know this is an updated version of the same file and they'll be 99% overlapping. This means that the NoC should be on the same scale of order as `1,867,414`. This is because we expect some new postcode entries and for those few entries we'll walk the entire list to find no match confirming it's a new entry.
 
 
 ### Multi-Threading
@@ -28,81 +38,83 @@ To cater for the worst case scenarios the simple solution is "guns, lots of guns
 
 ![lots of guns](guns.gif)
 
-It's less costly to sanitise data up-front rather than during the comparison loop so that any data cleansing actions aren't repeated on any entries parsed more than once. The script sorts both lists alphabetically and normalises the data (it converts all postcodes to the same case and strips white spaces, we can't rely on Openreach to provide consistently formatted data!).
+It's less costly to sanitise data up-front rather than during the comparison loop so that any data cleansing actions aren't repeated on any entries parsed more than once. The script sorts both lists alphabetically and normalises the data (it converts all postcodes to the same case and strips whitespace, we can't rely on Openreach to provide consistently formatted data!).
 
-The script then divides both files into the same number of chunks as there are CPU threads on the system, and spins up multiple threads and gives each thread a chunk from each file to compare.
+The script then divides both files into the same number of chunks as there are CPU threads on the system, and spins up multiple threads and gives each thread two chunks (one chunk from each file) to compare.
 
 
 ### Results
-Below are the results from running the script. After modifying the script to return the number of checks each thread made instead of the unique postcodes, across all thread in total 28,691,090 checks were made and the unmodified version of the script shown below shows that these 28,691,090 checks were made in ~57 seconds which is circa 503,352 checks per second.
+Below are the results from running the script. After modifying the script to return the number of checks each thread made instead of the unique postcodes, across all thread in total 28,688,266 checks were made and the unmodified version of the script shown below shows that these 28,688,266 checks were made in ~46 seconds which is ~623,658 checks per second.
+
+Note: the newer file is specified first!
 ```
-$python3 ./lad_compare.py -f1 ../LODE_LAD-2019-Q2.csv -f2 ../LODE_LAD-2019-Q3.csv
-Loading csv...
-Loaded 1867414 CSV rows from ../LODE_LAD-2019-Q2.csv
-Loaded in 9.596431866 seconds
+$python3 ./lad_compare.py -f1 ../LODE_LAD-2019-Q3.csv -f2 ../LODE_LAD-2019-Q2.csv
 Loading csv...
 Loaded 1867749 CSV rows from ../LODE_LAD-2019-Q3.csv
-Loaded in 9.717176722000001 seconds
+Loaded in 9.157270179000001 seconds
+Loading csv...
+Loaded 1867414 CSV rows from ../LODE_LAD-2019-Q2.csv
+Loaded in 9.415181116 seconds
 Formatting postcodes...
-Formatted in 1.6291147059999993 seconds
+Formatted in 1.6520208340000018 seconds
 Sorting postcodes...
-Sorted in 0.6528609359999997 seconds
+Sorted in 0.5936550419999982 seconds
 Number of CPUs:  12
-Chunk size per CPU: 155618
+Chunk size per CPU: 155646
 Chunking and merging LAD and Fibre data...
-Chunked data in 0.5032568519999998 seconds
-Chunk 0: file 1 entries 155618, file 2 entries 155640
-Chunk 1: file 1 entries 155618, file 2 entries 155657
-Chunk 2: file 1 entries 155618, file 2 entries 155644
-Chunk 3: file 1 entries 155618, file 2 entries 155648
-Chunk 4: file 1 entries 155618, file 2 entries 155639
-Chunk 5: file 1 entries 155618, file 2 entries 155650
-Chunk 6: file 1 entries 155618, file 2 entries 155649
-Chunk 7: file 1 entries 155618, file 2 entries 155647
-Chunk 8: file 1 entries 155618, file 2 entries 155644
-Chunk 9: file 1 entries 155618, file 2 entries 155641
-Chunk 10: file 1 entries 155618, file 2 entries 155643
-Chunk 11: file 1 entries 155616, file 2 entries 155635
-Total number of entries in all file 1 chunks: 1867414
-Total number of entries in all file 2 chunks: 1867737
-Worst case scenario checks to be made: 3487838222118
+Chunked data in 0.4653325989999999 seconds
+Chunk 0: file 1 entries 155646, file 2 entries 155622
+Chunk 1: file 1 entries 155646, file 2 entries 155605
+Chunk 2: file 1 entries 155646, file 2 entries 155618
+Chunk 3: file 1 entries 155646, file 2 entries 155614
+Chunk 4: file 1 entries 155646, file 2 entries 155623
+Chunk 5: file 1 entries 155646, file 2 entries 155612
+Chunk 6: file 1 entries 155646, file 2 entries 155613
+Chunk 7: file 1 entries 155646, file 2 entries 155615
+Chunk 8: file 1 entries 155646, file 2 entries 155618
+Chunk 9: file 1 entries 155646, file 2 entries 155621
+Chunk 10: file 1 entries 155646, file 2 entries 155619
+Chunk 11: file 1 entries 155643, file 2 entries 155622
+Total number of entries in all file 1 chunks: 1867749
+Total number of entries in all file 2 chunks: 1867402
+Worst case scenario checks to be made: 3487838218098
 Starting the comparison....
-Started process: <ForkProcess(ForkPoolWorker-1, started daemon)> (22249)
-Started process: <ForkProcess(ForkPoolWorker-2, started daemon)> (22250)
-Started process: <ForkProcess(ForkPoolWorker-3, started daemon)> (22251)
-Started process: <ForkProcess(ForkPoolWorker-4, started daemon)> (22252)
-Started process: <ForkProcess(ForkPoolWorker-5, started daemon)> (22253)
-Started process: <ForkProcess(ForkPoolWorker-6, started daemon)> (22254)
-Finished process: <ForkProcess(ForkPoolWorker-1, started daemon)> (22249)
-Started process: <ForkProcess(ForkPoolWorker-7, started daemon)> (22255)
-Finished process: <ForkProcess(ForkPoolWorker-2, started daemon)> (22250)
-Started process: <ForkProcess(ForkPoolWorker-8, started daemon)> (22256)
-Finished process: <ForkProcess(ForkPoolWorker-3, started daemon)> (22251)
-Started process: <ForkProcess(ForkPoolWorker-9, started daemon)> (22257)
-Started process: <ForkProcess(ForkPoolWorker-10, started daemon)> (22258)
-Finished process: <ForkProcess(ForkPoolWorker-4, started daemon)> (22252)
-Started process: <ForkProcess(ForkPoolWorker-11, started daemon)> (22259)
-Finished process: <ForkProcess(ForkPoolWorker-5, started daemon)> (22253)
-Started process: <ForkProcess(ForkPoolWorker-12, started daemon)> (22260)
-Finished process: <ForkProcess(ForkPoolWorker-6, started daemon)> (22254)
-Finished process: <ForkProcess(ForkPoolWorker-7, started daemon)> (22255)
-Finished process: <ForkProcess(ForkPoolWorker-8, started daemon)> (22256)
-Finished process: <ForkProcess(ForkPoolWorker-9, started daemon)> (22257)
-Finished process: <ForkProcess(ForkPoolWorker-10, started daemon)> (22258)
-Finished process: <ForkProcess(ForkPoolWorker-11, started daemon)> (22259)
-Finished process: <ForkProcess(ForkPoolWorker-12, started daemon)> (22260)
-Finished comparison in 57.057900914 seconds
-Entries in file ../LODE_LAD-2019-Q2.csv not in file ../LODE_LAD-2019-Q3.csv: 12
-Entries in file ../LODE_LAD-2019-Q3.csv not in file ../LODE_LAD-2019-Q2.csv: 335
+Started process: <ForkProcess(ForkPoolWorker-1, started daemon)> (23343)
+Started process: <ForkProcess(ForkPoolWorker-2, started daemon)> (23344)
+Started process: <ForkProcess(ForkPoolWorker-3, started daemon)> (23345)
+Started process: <ForkProcess(ForkPoolWorker-4, started daemon)> (23346)
+Started process: <ForkProcess(ForkPoolWorker-5, started daemon)> (23347)
+Started process: <ForkProcess(ForkPoolWorker-6, started daemon)> (23348)
+Finished process: <ForkProcess(ForkPoolWorker-1, started daemon)> (23343)
+Started process: <ForkProcess(ForkPoolWorker-7, started daemon)> (23349)
+Finished process: <ForkProcess(ForkPoolWorker-2, started daemon)> (23344)
+Started process: <ForkProcess(ForkPoolWorker-8, started daemon)> (23350)
+Finished process: <ForkProcess(ForkPoolWorker-3, started daemon)> (23345)
+Started process: <ForkProcess(ForkPoolWorker-9, started daemon)> (23351)
+Started process: <ForkProcess(ForkPoolWorker-10, started daemon)> (23352)
+Finished process: <ForkProcess(ForkPoolWorker-4, started daemon)> (23346)
+Started process: <ForkProcess(ForkPoolWorker-11, started daemon)> (23353)
+Finished process: <ForkProcess(ForkPoolWorker-5, started daemon)> (23347)
+Started process: <ForkProcess(ForkPoolWorker-12, started daemon)> (23354)
+Finished process: <ForkProcess(ForkPoolWorker-6, started daemon)> (23348)
+Finished process: <ForkProcess(ForkPoolWorker-7, started daemon)> (23349)
+Finished process: <ForkProcess(ForkPoolWorker-8, started daemon)> (23350)
+Finished process: <ForkProcess(ForkPoolWorker-9, started daemon)> (23351)
+Finished process: <ForkProcess(ForkPoolWorker-10, started daemon)> (23352)
+Finished process: <ForkProcess(ForkPoolWorker-11, started daemon)> (23353)
+Finished process: <ForkProcess(ForkPoolWorker-12, started daemon)> (23354)
+Finished comparison in 46.077212692 seconds
+Entries in file ../LODE_LAD-2019-Q3.csv not in file ../LODE_LAD-2019-Q2.csv: 347
+Entries in file ../LODE_LAD-2019-Q2.csv not in file ../LODE_LAD-2019-Q3.csv: 0
 ```
 
-# postcode_search.py
-
-### Postcode Search
-Search for an exact postcode in the Openreach LAD file or search for similar postcodes.
+## postcode_search.py
 
 ### Why?
-The CSV files from Openreach are so big that applications like Microsoft Excel can't open them :(
+The CSV (LAD) files from Openreach are so big that applications like Microsoft Excel can't open them :(
+
+### Results
+Search for an exact postcode in the Openreach LAD file or search for similar postcodes.
 
 ```
 $python3 ./postcode_search.py -l ../LODE_LAD-2019-Q3.csv -p E16PU
