@@ -304,9 +304,9 @@ def main():
 
     # The chunk size is driven by the smaller file
     if len(lad_data_1) < len(lad_data_2):
-        chunk_size = int(math.ceil(len(lad_data_1) / num_proc))
-    else:
         chunk_size = int(math.ceil(len(lad_data_2) / num_proc))
+    else:
+        chunk_size = int(math.ceil(len(lad_data_1) / num_proc))
 
     print("Number of CPUs:  {}".format(num_proc))
     print("Chunk size per CPU: {}".format(chunk_size))
