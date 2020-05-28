@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Requirements:
 sudo -H pip3 install PrettyTable
@@ -5,9 +7,12 @@ sudo -H pip3 install PrettyTable
 
 import argparse
 import csv
+import io
 import json
 from prettytable import PrettyTable
+import re
 import sys
+import zipfile
 
 
 def find_exact_postcode(lad_data, postcode, results):
@@ -83,15 +88,58 @@ def load_csv(filename):
         return False
 
     try:
-        csv_file = open(filename, "r", encoding="ISO-8859-1")
-    except Exception:
-        print("Couldn't open file {}".format(filename))
-        return False
+
+        # Check if ZIP archive filename is given
+        if filename.split(".")[-1] == "zip":
+
+            try:
+                zip_data = zipfile.ZipFile(filename)
+            except Exception as e:
+                print("Couldn't open zip file {}: {}".format(filename, e))
+                return False
+
+            # Look for the LAD file inside ZIp archive
+            for fname in zip_data.namelist():
+               if re.match(".*LODE_LAD.*", fname):
+                  csv_filename = fname
+                  break
+            else:
+                print("Couldn't find LAD CSV file in ZIP archive")
+                return False
+
+            # Decompress it
+            try:
+                csv_file = io.StringIO(
+                    zip_data.read(
+                        csv_filename
+                    ).decode("ISO-8859-1")
+                )
+            except Exception as e:
+                print(
+                    "Couldn't decompression CSV file from ZIP archive "
+                    "to string: {}".format(e)
+                )
+                return False
+
+
+       # Assume CSV file
+        else:
+            try:
+                csv_file = open(filename, "r", encoding="ISO-8859-1")
+            except Exception:
+                print("Couldn't open file {}".format(filename))
+                return False
+
+    except Exception as e:
+        print(
+            "LAD file name invalid, expected foo.csv or foo.zip: {}".format(e)
+        )
+
 
     try:
         csv_data = csv.DictReader(csv_file)
     except Exception as e:
-        print("Couldn't parse CSV file".format(e))
+        print("Couldn't parse CSV file: {}".format(e))
         return False
 
     rows = [row for row in csv_data]
@@ -111,7 +159,7 @@ def parse_cli_args():
     parser.add_argument(
         "-l",
         "--lad-file",
-        help="Openreach LAD file",
+        help="Openreach LAD file, CSV or ZIP containing CSV",
         type=str,
         default=None
     )

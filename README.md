@@ -117,6 +117,8 @@ The CSV (LAD) files from Openreach are so big that applications like Microsoft E
 Search for an exact postcode in the Openreach LAD file or search for similar postcodes.
 
 ```
+# Exact match
+
 $python3 ./postcode_search.py -l ../LODE_LAD-2019-Q3.csv -p E16PU
 Loaded 1867749 postcodes from LAD file
 +---------------+----------+--------+----------+---------------------+---------------------+-----------------+
@@ -124,6 +126,18 @@ Loaded 1867749 postcodes from LAD file
 +---------------+----------+--------+----------+---------------------+---------------------+-----------------+
 |     L/BIS     |  E1 6PU  | CLBIS  | EZ0025A1 |          Y          |          Y          | BISHOPSGATE T E |
 +---------------+----------+--------+----------+---------------------+---------------------+-----------------+
+
+# Specify the ZIP file name pulled from the OR portal, meaning that the CSV file doesn't need to be extracted:
+
+python3 ./postcode_search.py -l LODE_LAD-2019-Q3.csv.zip -p "E1 6PU"
+Loaded 1867749 postcodes from LAD file
++---------------+----------+--------+----------+---------------------+---------------------+-----------------+
+| exchange_1141 | postcode | mdf_id | site_id  | fibre_upto_exchange | fibre_upto_postcode |  exchange_name  |
++---------------+----------+--------+----------+---------------------+---------------------+-----------------+
+|     L/BIS     |  E1 6PU  | CLBIS  | EZ0025A1 |          Y          |          Y          | BISHOPSGATE T E |
++---------------+----------+--------+----------+---------------------+---------------------+-----------------+
+
+# Non-exact match
 
 $python3 ./postcode_search.py -l ../LODE_LAD-2019-Q3.csv -p E16P -n
 Loaded 1867749 postcodes from LAD file
